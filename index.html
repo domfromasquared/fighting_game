@@ -210,7 +210,7 @@
             background: #ef4444; /* red when round won */
         }
 
-        /* Sprites (315 x 252, +40%), your stable version */
+        /* Sprites (315 x 252, +40%), stable version */
         .sprite {
             position: absolute;
             bottom: -20px;
@@ -224,7 +224,6 @@
             transition: transform 0.16s ease-out;
         }
 
-        /* Your chosen positions */
         .player-sprite {
             left: 85px;
         }
@@ -447,6 +446,17 @@
         </div>
     </div>
 
+    <!-- Sound Effects -->
+    <audio id="sfx-hit1" src="sfx/hit1.wav" preload="auto"></audio>
+    <audio id="sfx-hit2" src="sfx/hit2.wav" preload="auto"></audio>
+    <audio id="sfx-hit3" src="sfx/hit3.wav" preload="auto"></audio>
+
+    <audio id="sfx-male-dmg" src="sfx/male damage.wav" preload="auto"></audio>
+    <audio id="sfx-female-dmg" src="sfx/female damage.wav" preload="auto"></audio>
+
+    <audio id="sfx-quinn-boom" src="sfx/quinn_boom.wav" preload="auto"></audio>
+    <audio id="sfx-dom-snap" src="sfx/dom_snap.wav" preload="auto"></audio>
+
     <!-- Python Logic -->
     <script type="py" async="false">
 from js import document, setTimeout
@@ -498,7 +508,7 @@ WIN_QUOTES = {
     "QUINN": 'QUINN: "That\'s a wrap. Cut!"',
 }
 
-# Sprite paths
+# Sprite paths (note DOM ability frames added)
 SPRITES = {
     "DOM": {
         "standing": "assets/dom_standing.png",
@@ -508,6 +518,8 @@ SPRITES = {
         "kick2":    "assets/dom_kick.png",
         "damage1":  "assets/dom_damage.png",
         "damage2":  "assets/dom_damage.png",
+        "ability1": "assets/dom_ability1.png",
+        "ability2": "assets/dom_ability2.png",
     },
     "JENNY": {
         "standing": "assets/jenny_standing.png",
@@ -560,6 +572,12 @@ MAX_ROUND_WINS    = 2
 def log(msg: str):
     log_el.innerHTML = msg + "<br>" + log_el.innerHTML
 
+def play_sound(element_id: str):
+    snd = document.getElementById(element_id)
+    if snd is not None:
+        snd.currentTime = 0
+        snd.play()
+
 def color_for_hp(hp: int, max_hp: int) -> str:
     """
     HP color logic:
@@ -577,7 +595,7 @@ def color_for_hp(hp: int, max_hp: int) -> str:
 def update_hp():
     global player_hp, cpu_hp
 
-    # Still set text (even though it's hidden) – harmless
+    # still update text (hidden)
     player_hp_text.innerText = f"HP: {player_hp} / {player_max_hp}"
     cpu_hp_text.innerText    = f"HP: {cpu_hp} / {cpu_max_hp}"
 
@@ -587,7 +605,6 @@ def update_hp():
     player_hp_bar.style.width = f"{player_ratio * 100}%"
     cpu_hp_bar.style.width    = f"{cpu_ratio * 100}%"
 
-    # Dynamic bar colors
     player_hp_bar.style.background = color_for_hp(player_hp, player_max_hp)
     cpu_hp_bar.style.background    = color_for_hp(cpu_hp, cpu_max_hp)
 
@@ -644,7 +661,7 @@ def trigger_attack(attacker: str):
 def trigger_shake():
     """Subtle screen shake when abilities land."""
     arena_el.classList.remove("shake")
-    _ = arena_el.offsetWidth  # reflow to restart animation
+    _ = arena_el.offsetWidth  # reflow to restart
     arena_el.classList.add("shake")
 
     def clear():
@@ -687,12 +704,10 @@ def apply_character(chosen: str):
     player_character = chosen
     cpu_character    = choose_cpu_for_player(chosen)
 
-    # reset rounds for new match
     player_round_wins = 0
     cpu_round_wins    = 0
     update_round_dots()
 
-    # set labels
     player_name_el.innerText = CHAR_LABEL[player_character]
     cpu_name_el.innerText    = CHAR_LABEL[cpu_character] + " (CPU)"
 
@@ -827,15 +842,27 @@ def player_attack(move: str):
         move_name = "Kick 🦵"
         attack_kind = "kick"
 
+    # Quinn ability: double damage for next attacks
     if player_character == "QUINN" and quinn_double_attacks > 0:
         original = dmg
         dmg *= 2
         quinn_double_attacks -= 1
         log(f"Boom Mic Power boosts damage from {original} to {dmg}! 🎤💥")
 
+    # random hit SFX
+    hit_sfx = random.choice(["sfx-hit1", "sfx-hit2", "sfx-hit3"])
+    play_sound(hit_sfx)
+
+    # 2-frame attack on player, 2-frame damage on CPU
     animate_two_frame("player", attack_kind)
     animate_two_frame("cpu", "damage")
     trigger_attack("player")
+
+    # CPU damage voice
+    if cpu_character == "JENNY":
+        play_sound("sfx-female-dmg")
+    else:
+        play_sound("sfx-male-dmg")
 
     cpu_hp = max(cpu_hp - dmg, 0)
     log(f"{player_character} uses {move_name} for {dmg} damage!")
@@ -877,10 +904,26 @@ def animate_quinn_ability_sequence():
     step1()
 
 
+def animate_dom_ability_sequence():
+    """Dom ability animation: ability1 -> ability2 -> standing"""
+    def step1():
+        set_player_sprite("ability1")
+        with_delay(step2, 120)
+
+    def step2():
+        set_player_sprite("ability2")
+        with_delay(step3, 120)
+
+    def step3():
+        set_player_sprite("standing")
+
+    step1()
+
+
 def use_ability():
     """
     Once-per-match ability:
-      DOM   - Lockdown (CPU silenced for 2 turns)
+      DOM   - Lockdown (CPU silenced for 2 turns) + snap animation
       JENNY - Guardian Aura (half damage for 5 CPU attacks)
       QUINN - Boom Mic (3-frame pose + projectile + next 2 attacks double damage)
 
@@ -899,21 +942,37 @@ def use_ability():
     if player_character == "DOM":
         cpu_silenced_turns = 2
         log(f"{player_character} activates Lockdown! CPU cannot attack for 2 turns!")
+        play_sound("sfx-dom-snap")
+        animate_dom_ability_sequence()
         animate_two_frame("cpu", "damage")
+        # CPU voice based on its gender-ish mapping
+        if cpu_character == "JENNY":
+            play_sound("sfx-female-dmg")
+        else:
+            play_sound("sfx-male-dmg")
         trigger_shake()
 
     elif player_character == "JENNY":
         player_half_damage_turns = 5
         log(f"{player_character} activates Guardian Aura! Half damage for 5 CPU attacks!")
         animate_two_frame("cpu", "damage")
+        if cpu_character == "JENNY":
+            play_sound("sfx-female-dmg")
+        else:
+            play_sound("sfx-male-dmg")
         trigger_shake()
 
     elif player_character == "QUINN":
         quinn_double_attacks = 2
         log(f"{player_character} hurls the BOOM MIC! Next 2 attacks deal DOUBLE damage! 🎤💥")
+        play_sound("sfx-quinn-boom")
         animate_quinn_ability_sequence()
         show_quinn_boom()
         animate_two_frame("cpu", "damage")
+        if cpu_character == "JENNY":
+            play_sound("sfx-female-dmg")
+        else:
+            play_sound("sfx-male-dmg")
         trigger_shake()
 
     player_turn = False
@@ -948,6 +1007,10 @@ def cpu_attack():
         move_name = "Kick 🦵"
         attack_kind = "kick"
 
+    # random hit SFX
+    hit_sfx = random.choice(["sfx-hit1", "sfx-hit2", "sfx-hit3"])
+    play_sound(hit_sfx)
+
     if player_character == "JENNY" and player_half_damage_turns > 0:
         original = dmg
         dmg = max(1, dmg // 2)
@@ -959,6 +1022,12 @@ def cpu_attack():
     animate_two_frame("cpu", attack_kind)
     animate_two_frame("player", "damage")
     trigger_attack("cpu")
+
+    # Player damage voice
+    if player_character == "JENNY":
+        play_sound("sfx-female-dmg")
+    else:
+        play_sound("sfx-male-dmg")
 
     player_hp = max(player_hp - dmg, 0)
     log(f"{cpu_character} uses {move_name} for {dmg} damage!")
