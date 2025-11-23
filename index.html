@@ -153,7 +153,6 @@
             align-items: flex-start;
             gap: 20px;
 
-            /* subtle overlay backdrop */
             background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.0));
             padding: 4px 6px 8px;
             border-radius: 8px;
@@ -173,14 +172,13 @@
         .hp-bar {
             height: 100%;
             width: 100%;
-            background: linear-gradient(90deg, #22c55e, #16a34a);
-            transition: width 0.18s ease-out;
+            background: #22c55e; /* default, will be overridden in JS */
+            transition: width 0.18s ease-out, background 0.15s ease-out;
         }
 
+        /* HP text hidden visually */
         .hp-text {
-            font-size: 0.78rem;
-            margin-top: 4px;
-            opacity: 0.9;
+            display: none;
         }
 
         .name-rounds {
@@ -562,8 +560,24 @@ MAX_ROUND_WINS    = 2
 def log(msg: str):
     log_el.innerHTML = msg + "<br>" + log_el.innerHTML
 
+def color_for_hp(hp: int, max_hp: int) -> str:
+    """
+    HP color logic:
+      - 100   -> green
+      - 99-26 -> yellow
+      - 25-0  -> red
+    """
+    if hp >= max_hp:
+        return "#22c55e"  # green
+    elif hp >= 26:
+        return "#facc15"  # yellow
+    else:
+        return "#ef4444"  # red
+
 def update_hp():
     global player_hp, cpu_hp
+
+    # Still set text (even though it's hidden) – harmless
     player_hp_text.innerText = f"HP: {player_hp} / {player_max_hp}"
     cpu_hp_text.innerText    = f"HP: {cpu_hp} / {cpu_max_hp}"
 
@@ -572,6 +586,10 @@ def update_hp():
 
     player_hp_bar.style.width = f"{player_ratio * 100}%"
     cpu_hp_bar.style.width    = f"{cpu_ratio * 100}%"
+
+    # Dynamic bar colors
+    player_hp_bar.style.background = color_for_hp(player_hp, player_max_hp)
+    cpu_hp_bar.style.background    = color_for_hp(cpu_hp, cpu_max_hp)
 
 
 def set_player_sprite(state: str):
@@ -767,7 +785,6 @@ def handle_round_end(winner: str):
         if player_round_wins >= MAX_ROUND_WINS:
             status_el.innerText = "YOU WIN THE MATCH! 🎉"
             log(f"{player_character} wins the match!")
-            quote = CHAR_LABEL.get(player_character)
             qtext = WIN_QUOTES.get(player_character)
             if qtext:
                 log(qtext)
