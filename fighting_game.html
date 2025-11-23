@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>A²: Pixel Punchout!</title>
+
+    <!-- PyScript core -->
+    <link rel="stylesheet" href="https://pyscript.net/releases/2025.11.1/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2025.11.1/core.js"></script>
+
+    <style>
+        :root {
+            --game-width: 620px; /* fixed width */
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #020617;
+            color: #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding-top: 40px;
+        }
+
+        .screen,
+        .game-container {
+            width: var(--game-width);
+            max-width: var(--game-width);
+        }
+
+        #game-screen {
+            display: none;
+        }
+
+        /* --- Character Select Screen --- */
+        #char-select-screen {
+            background: #020617;
+            border-radius: 16px;
+            padding: 24px 28px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+            border: 1px solid #1f2937;
+            text-align: center;
+        }
+
+        #char-select-screen h1 {
+            margin-bottom: 6px;
+            font-size: 1.7rem;
+        }
+
+        #char-select-subtitle {
+            font-size: 0.95rem;
+            opacity: 0.9;
+            margin-bottom: 22px;
+        }
+
+        .char-grid {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .char-card {
+            border: 2px solid #1f2937;
+            background: #020617;
+            border-radius: 14px;
+            padding: 16px;
+            width: 150px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: 0.12s ease-out;
+        }
+
+        .char-card:hover {
+            transform: translateY(-4px);
+            border-color: #38bdf8;
+            background: #0b1229;
+            box-shadow: 0 10px 18px rgba(0,0,0,0.45);
+        }
+
+        .char-img {
+            width: 150px;
+            height: 150px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            margin-bottom: 10px;
+        }
+
+        .char-name {
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        .char-tagline {
+            font-size: 0.82rem;
+            margin-top: 6px;
+            opacity: 0.85;
+        }
+
+        /* --- Game container --- */
+        .game-container {
+            background: #020617;
+            border-radius: 16px;
+            padding: 24px 28px 28px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+            border: 1px solid #1f2937;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 14px;
+            font-size: 1.7rem;
+        }
+
+        /* --- Pixel-Art Arena --- */
+        .arena {
+            position: relative;
+            height: 220px;
+            width: 100%;
+            margin-bottom: 18px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #111827;
+
+            background-image: url("assets/background.png");
+            background-size: cover;
+            background-position: bottom;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        .arena-ground {
+            display: none;
+        }
+
+        /* --- Top HUD now INSIDE arena --- */
+        .top-hud {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            right: 8px;
+            z-index: 5;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+
+            /* subtle overlay backdrop */
+            background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.0));
+            padding: 4px 6px 8px;
+            border-radius: 8px;
+        }
+
+        .fighter-hud {
+            width: 48%;
+        }
+
+        .hp-bar-container {
+            background: #111827;
+            border-radius: 999px;
+            overflow: hidden;
+            height: 16px;
+        }
+
+        .hp-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            transition: width 0.18s ease-out;
+        }
+
+        .hp-text {
+            font-size: 0.78rem;
+            margin-top: 4px;
+            opacity: 0.9;
+        }
+
+        .name-rounds {
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .fighter-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .round-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .round-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #facc15; /* yellow (round slot) */
+        }
+
+        .round-dot.won {
+            background: #ef4444; /* red when round won */
+        }
+
+        /* Sprites (315 x 252, +40%), your stable version */
+        .sprite {
+            position: absolute;
+            bottom: -20px;
+            width: 315px;
+            height: 252px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 6px;
+            transition: transform 0.16s ease-out;
+        }
+
+        /* Your chosen positions */
+        .player-sprite {
+            left: 85px;
+        }
+
+        .cpu-sprite {
+            right: 85px;
+            transform: scaleX(-1);
+        }
+
+        .sprite-img {
+            width: 315px;
+            height: 252px;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+
+        .label {
+            font-size: 0.78rem;
+            margin-top: 2px;
+        }
+
+        /* Quinn ability projectile */
+        .ability-effect {
+            position: absolute;
+            bottom: 100px;
+            left: 130px;
+            width: 90px;
+            height: auto;
+            opacity: 0;
+            pointer-events: none;
+            image-rendering: pixelated;
+            z-index: 4;
+        }
+
+        @keyframes boom-throw {
+            0%   { opacity: 0; transform: translateX(0); }
+            10%  { opacity: 1; }
+            90%  { opacity: 1; transform: translateX(260px); }
+            100% { opacity: 0; transform: translateX(260px); }
+        }
+
+        .ability-effect-active {
+            animation: boom-throw 0.5s linear;
+        }
+
+        .log {
+            background: #020617;
+            border-radius: 12px;
+            padding: 10px;
+            min-height: 70px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            margin-bottom: 14px;
+            border: 1px solid #111827;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            background: #2563eb;
+            color: white;
+            font-weight: 500;
+            min-width: 96px;
+        }
+
+        button:disabled {
+            background: #4b5563;
+        }
+
+        .secondary-btn {
+            background: #10b981;
+        }
+
+        #btn-restart {
+            background: #64748b;
+        }
+
+        .ability-btn {
+            background: #a855f7;
+        }
+
+        .center {
+            text-align: center;
+            margin-top: 6px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }
+
+        /* Attack wiggle */
+        @keyframes attack-player {
+            0% { transform: translateX(0); }
+            40% { transform: translateX(-55px); }  /* move toward CPU */
+            100% { transform: translateX(0); }
+        }
+
+        @keyframes attack-cpu {
+            0% { transform: scaleX(-1) translateX(0); }
+            40% { transform: scaleX(-1) translateX(55px); } /* move toward player */
+            100% { transform: scaleX(-1) translateX(0); }
+        }
+
+        .attack-player { animation: attack-player 0.22s ease-out; }
+        .attack-cpu   { animation: attack-cpu 0.22s ease-out; }
+
+        /* Subtle screen shake for abilities */
+        @keyframes shake {
+            0%   { transform: translateX(0); }
+            25%  { transform: translateX(-4px); }
+            50%  { transform: translateX(4px); }
+            75%  { transform: translateX(-3px); }
+            100% { transform: translateX(0); }
+        }
+
+        .shake {
+            animation: shake 0.25s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Character Selection Screen -->
+    <div id="char-select-screen" class="screen">
+        <h1>Choose Your Fighter</h1>
+        <div id="char-select-subtitle">
+            Pick <strong>DOM</strong>, <strong>JENNY</strong>, or <strong>QUINN</strong> to begin
+        </div>
+
+        <div class="char-grid">
+            <!-- DOM -->
+            <div id="btn-pick-dom" class="char-card">
+                <img src="assets/dom_select.png" class="char-img" />
+                <div class="char-name">DOM</div>
+                <div class="char-tagline">Strategic & precise.</div>
+            </div>
+
+            <!-- JENNY -->
+            <div id="btn-pick-jenny" class="char-card">
+                <img src="assets/jenny_select.png" class="char-img" />
+                <div class="char-name">JENNY</div>
+                <div class="char-tagline">Supportive but deadly.</div>
+            </div>
+
+            <!-- QUINN -->
+            <div id="btn-pick-quinn" class="char-card">
+                <img src="assets/quinn_select.png" class="char-img" />
+                <div class="char-name">QUINN</div>
+                <div class="char-tagline">Studio-sharp & explosive.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="game-container">
+        <h1>A²: Pixel Punchout!</h1>
+
+        <div class="arena" id="arena">
+            <!-- Top HUD now inside the arena -->
+            <div class="top-hud">
+                <div class="fighter-hud">
+                    <div class="hp-bar-container">
+                        <div id="player-hp-bar" class="hp-bar"></div>
+                    </div>
+                    <div id="player-hp-text" class="hp-text">HP: 100 / 100</div>
+                    <div class="name-rounds">
+                        <span id="player-name" class="fighter-name">Player</span>
+                        <div class="round-dots">
+                            <span id="player-round-1" class="round-dot"></span>
+                            <span id="player-round-2" class="round-dot"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fighter-hud" style="text-align: right;">
+                    <div class="hp-bar-container">
+                        <div id="cpu-hp-bar" class="hp-bar"></div>
+                    </div>
+                    <div id="cpu-hp-text" class="hp-text" style="text-align:right;">HP: 100 / 100</div>
+                    <div class="name-rounds">
+                        <span id="cpu-name" class="fighter-name">CPU</span>
+                        <div class="round-dots">
+                            <span id="cpu-round-1" class="round-dot"></span>
+                            <span id="cpu-round-2" class="round-dot"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quinn boom-mic projectile -->
+            <img id="quinn-boom" src="assets/quinn_boom.png" class="ability-effect" />
+
+            <div id="player-sprite" class="sprite player-sprite">
+                <img id="player-sprite-img" class="sprite-img" src="" alt="Player sprite" />
+            </div>
+
+            <div id="cpu-sprite" class="sprite cpu-sprite">
+                <img id="cpu-sprite-img" class="sprite-img" src="" alt="CPU sprite" />
+            </div>
+        </div>
+
+        <div id="status" class="center">Your turn! Choose an attack.</div>
+        <div class="log" id="log"></div>
+
+        <div class="controls">
+            <button id="btn-punch">Punch 👊</button>
+            <button id="btn-kick" class="secondary-btn">Kick 🦵</button>
+            <button id="btn-ability" class="ability-btn">Ability ✨</button>
+            <button id="btn-restart">Restart 🔁</button>
+        </div>
+    </div>
+
+    <!-- Python Logic -->
+    <script type="py" async="false">
+from js import document, setTimeout
+from pyscript import when
+from pyodide.ffi import create_proxy
+import random
+
+# Screens
+char_screen = document.getElementById("char-select-screen")
+game_screen = document.getElementById("game-screen")
+
+# HUD / UI
+log_el        = document.getElementById("log")
+status_el     = document.getElementById("status")
+player_hp_bar = document.getElementById("player-hp-bar")
+cpu_hp_bar    = document.getElementById("cpu-hp-bar")
+player_hp_text = document.getElementById("player-hp-text")
+cpu_hp_text    = document.getElementById("cpu-hp-text")
+
+player_sprite = document.getElementById("player-sprite")
+cpu_sprite    = document.getElementById("cpu-sprite")
+
+player_sprite_img = document.getElementById("player-sprite-img")
+cpu_sprite_img    = document.getElementById("cpu-sprite-img")
+
+player_name_el = document.getElementById("player-name")
+cpu_name_el    = document.getElementById("cpu-name")
+
+# Round dots
+player_round_1_el = document.getElementById("player-round-1")
+player_round_2_el = document.getElementById("player-round-2")
+cpu_round_1_el    = document.getElementById("cpu-round-1")
+cpu_round_2_el    = document.getElementById("cpu-round-2")
+
+boom_el  = document.getElementById("quinn-boom")
+arena_el = document.getElementById("arena")
+
+ALL_CHARACTERS = ["DOM", "JENNY", "QUINN"]
+
+CHAR_LABEL = {
+    "DOM": "DOM",
+    "JENNY": "JENNY",
+    "QUINN": "QUINN",
+}
+
+WIN_QUOTES = {
+    "DOM":   'DOM: "Brain over brawn. Every time."',
+    "JENNY": 'JENNY: "All heart. All day."',
+    "QUINN": 'QUINN: "That\'s a wrap. Cut!"',
+}
+
+# Sprite paths
+SPRITES = {
+    "DOM": {
+        "standing": "assets/dom_standing.png",
+        "punch1":   "assets/dom_punch.png",
+        "punch2":   "assets/dom_punch.png",
+        "kick1":    "assets/dom_kick.png",
+        "kick2":    "assets/dom_kick.png",
+        "damage1":  "assets/dom_damage.png",
+        "damage2":  "assets/dom_damage.png",
+    },
+    "JENNY": {
+        "standing": "assets/jenny_standing.png",
+        "punch1":   "assets/jenny_punch.png",
+        "punch2":   "assets/jenny_punch.png",
+        "kick1":    "assets/jenny_kick.png",
+        "kick2":    "assets/jenny_kick.png",
+        "damage1":  "assets/jenny_damage.png",
+        "damage2":  "assets/jenny_damage.png",
+    },
+    "QUINN": {
+        "standing": "assets/quinn_standing.png",
+        "punch1":   "assets/quinn_punch.png",
+        "punch2":   "assets/quinn_punch.png",
+        "kick1":    "assets/quinn_kick.png",
+        "kick2":    "assets/quinn_kick.png",
+        "damage1":  "assets/quinn_damage.png",
+        "damage2":  "assets/quinn_damage.png",
+        "ability1": "assets/quinn_ability1.png",
+        "ability2": "assets/quinn_ability2.png",
+    },
+}
+
+# Game State
+player_character = None
+cpu_character    = None
+
+player_max_hp = 100
+cpu_max_hp    = 100
+player_hp     = player_max_hp
+cpu_hp        = cpu_max_hp
+player_turn   = True
+game_over     = False  # true when round OR match is not active
+
+# Ability state
+ability_used             = False
+cpu_silenced_turns       = 0   # DOM
+player_half_damage_turns = 0   # JENNY
+quinn_double_attacks     = 0   # QUINN
+
+# Rounds (best of 3)
+player_round_wins = 0
+cpu_round_wins    = 0
+MAX_ROUND_WINS    = 2
+
+
+# -------------------------------
+# Helpers
+# -------------------------------
+def log(msg: str):
+    log_el.innerHTML = msg + "<br>" + log_el.innerHTML
+
+def update_hp():
+    global player_hp, cpu_hp
+    player_hp_text.innerText = f"HP: {player_hp} / {player_max_hp}"
+    cpu_hp_text.innerText    = f"HP: {cpu_hp} / {cpu_max_hp}"
+
+    player_ratio = max(player_hp, 0) / player_max_hp
+    cpu_ratio    = max(cpu_hp, 0) / cpu_max_hp
+
+    player_hp_bar.style.width = f"{player_ratio * 100}%"
+    cpu_hp_bar.style.width    = f"{cpu_ratio * 100}%"
+
+
+def set_player_sprite(state: str):
+    if player_character is None:
+        return
+    player_sprite_img.src = SPRITES[player_character][state]
+
+def set_cpu_sprite(state: str):
+    if cpu_character is None:
+        return
+    cpu_sprite_img.src = SPRITES[cpu_character][state]
+
+def with_delay(fn, ms: int):
+    callback = create_proxy(lambda *args: fn())
+    setTimeout(callback, ms)
+
+
+def animate_two_frame(side: str, kind: str, step_ms: int = 90):
+    """
+    Generic 2-frame animation for punch/kick/damage:
+    kind in {"punch", "kick", "damage"}
+    Sequence: kind1 -> kind2 -> kind1 -> standing
+    """
+    def set_side_sprite(state: str):
+        if side == "player":
+            set_player_sprite(state)
+        else:
+            set_cpu_sprite(state)
+
+    def step1():
+        set_side_sprite(f"{kind}1")
+        with_delay(step2, step_ms)
+
+    def step2():
+        set_side_sprite(f"{kind}2")
+        with_delay(step3, step_ms)
+
+    def step3():
+        set_side_sprite(f"{kind}1")
+        with_delay(lambda: set_side_sprite("standing"), step_ms)
+
+    step1()
+
+
+def trigger_attack(attacker: str):
+    cls = "attack-player" if attacker == "player" else "attack-cpu"
+    sprite = player_sprite if attacker == "player" else cpu_sprite
+    sprite.classList.remove(cls)
+    _ = sprite.offsetWidth  # reflow
+    sprite.classList.add(cls)
+
+def trigger_shake():
+    """Subtle screen shake when abilities land."""
+    arena_el.classList.remove("shake")
+    _ = arena_el.offsetWidth  # reflow to restart animation
+    arena_el.classList.add("shake")
+
+    def clear():
+        arena_el.classList.remove("shake")
+    with_delay(clear, 260)
+
+
+def set_buttons(active: bool):
+    global ability_used
+    document.getElementById("btn-punch").disabled = not active
+    document.getElementById("btn-kick").disabled  = not active
+
+    ability_btn = document.getElementById("btn-ability")
+    if active and (not ability_used) and (player_character is not None) and (not game_over):
+        ability_btn.disabled = False
+    else:
+        ability_btn.disabled = True
+
+
+def update_round_dots():
+    """Set round dot colors based on round wins."""
+    player_round_1_el.classList.toggle("won", player_round_wins >= 1)
+    player_round_2_el.classList.toggle("won", player_round_wins >= 2)
+    cpu_round_1_el.classList.toggle("won", cpu_round_wins >= 1)
+    cpu_round_2_el.classList.toggle("won", cpu_round_wins >= 2)
+
+
+# -------------------------------
+# Character selection
+# -------------------------------
+def choose_cpu_for_player(chosen: str) -> str:
+    options = [c for c in ALL_CHARACTERS if c != chosen]
+    return random.choice(options)
+
+def apply_character(chosen: str):
+    global player_character, cpu_character
+    global ability_used, cpu_silenced_turns, player_half_damage_turns, quinn_double_attacks
+    global player_round_wins, cpu_round_wins
+
+    player_character = chosen
+    cpu_character    = choose_cpu_for_player(chosen)
+
+    # reset rounds for new match
+    player_round_wins = 0
+    cpu_round_wins    = 0
+    update_round_dots()
+
+    # set labels
+    player_name_el.innerText = CHAR_LABEL[player_character]
+    cpu_name_el.innerText    = CHAR_LABEL[cpu_character] + " (CPU)"
+
+    set_player_sprite("standing")
+    set_cpu_sprite("standing")
+
+    char_screen.style.display = "none"
+    game_screen.style.display = "block"
+
+    reset_game()
+
+
+@when("click", "#btn-pick-dom")
+def pick_dom(event):
+    apply_character("DOM")
+
+@when("click", "#btn-pick-jenny")
+def pick_jenny(event):
+    apply_character("JENNY")
+
+@when("click", "#btn-pick-quinn")
+def pick_quinn(event):
+    apply_character("QUINN")
+
+
+# -------------------------------
+# Game core: rounds & match
+# -------------------------------
+def reset_ability_state():
+    global ability_used, cpu_silenced_turns, player_half_damage_turns, quinn_double_attacks
+    ability_used             = False
+    cpu_silenced_turns       = 0
+    player_half_damage_turns = 0
+    quinn_double_attacks     = 0
+
+
+def start_new_round():
+    """Reset HP & abilities for next round, keep round wins."""
+    global player_hp, cpu_hp, player_turn, game_over
+
+    player_hp = player_max_hp
+    cpu_hp    = cpu_max_hp
+    player_turn = True
+    game_over   = False
+    reset_ability_state()
+    update_hp()
+    log_el.innerHTML = ""
+
+    round_number = player_round_wins + cpu_round_wins + 1
+    status_el.innerText = f"Round {round_number} - Your turn, {player_character}!"
+    set_buttons(True)
+
+
+def reset_game():
+    """Full match reset (called on Restart)."""
+    global player_hp, cpu_hp, player_turn, game_over
+    global player_round_wins, cpu_round_wins
+
+    player_hp = player_max_hp
+    cpu_hp    = cpu_max_hp
+    player_turn = True
+    game_over   = False
+
+    player_round_wins = 0
+    cpu_round_wins    = 0
+    reset_ability_state()
+    update_hp()
+    update_round_dots()
+
+    log_el.innerHTML = ""
+    status_el.innerText = f"Round 1 - Your turn, {player_character}!"
+    set_buttons(True)
+
+
+def handle_round_end(winner: str):
+    """
+    Called when HP of someone hits 0.
+    winner in {"player", "cpu"}
+    Manages rounds and match (best of 3) + win quotes.
+    """
+    global player_round_wins, cpu_round_wins, game_over
+
+    game_over = True
+    set_buttons(False)
+
+    if winner == "player":
+        player_round_wins += 1
+        update_round_dots()
+
+        if player_round_wins >= MAX_ROUND_WINS:
+            status_el.innerText = "YOU WIN THE MATCH! 🎉"
+            log(f"{player_character} wins the match!")
+            quote = CHAR_LABEL.get(player_character)
+            qtext = WIN_QUOTES.get(player_character)
+            if qtext:
+                log(qtext)
+            return
+        else:
+            status_el.innerText = "YOU WIN!"
+            log("You win the round!")
+            with_delay(start_new_round, 3000)
+            return
+
+    cpu_round_wins += 1
+    update_round_dots()
+
+    if cpu_round_wins >= MAX_ROUND_WINS:
+        status_el.innerText = "YOU LOSE THE MATCH! 💀"
+        log(f"{cpu_character} wins the match.")
+        qtext = WIN_QUOTES.get(cpu_character)
+        if qtext:
+            log(qtext)
+        return
+    else:
+        status_el.innerText = "YOU LOSE!"
+        log("CPU wins the round.")
+        with_delay(start_new_round, 3000)
+        return
+
+
+def player_attack(move: str):
+    global cpu_hp, player_turn, game_over, quinn_double_attacks
+
+    if not player_turn or game_over:
+        return
+
+    if move == "punch":
+        dmg = random.randint(8, 16)
+        move_name = "Punch 👊"
+        attack_kind = "punch"
+    else:
+        dmg = random.randint(4, 26)
+        move_name = "Kick 🦵"
+        attack_kind = "kick"
+
+    if player_character == "QUINN" and quinn_double_attacks > 0:
+        original = dmg
+        dmg *= 2
+        quinn_double_attacks -= 1
+        log(f"Boom Mic Power boosts damage from {original} to {dmg}! 🎤💥")
+
+    animate_two_frame("player", attack_kind)
+    animate_two_frame("cpu", "damage")
+    trigger_attack("player")
+
+    cpu_hp = max(cpu_hp - dmg, 0)
+    log(f"{player_character} uses {move_name} for {dmg} damage!")
+    update_hp()
+
+    if cpu_hp <= 0:
+        handle_round_end("player")
+        return
+
+    player_turn = False
+    set_buttons(False)
+    status_el.innerText = f"{cpu_character} (CPU) attacks..."
+    with_delay(cpu_attack, 1000)
+
+
+def show_quinn_boom():
+    boom_el.classList.remove("ability-effect-active")
+    _ = boom_el.offsetWidth
+    boom_el.classList.add("ability-effect-active")
+
+
+def animate_quinn_ability_sequence():
+    """
+    Quinn ability sprite sequence:
+    ability1 -> ability2 -> ability1 -> standing
+    """
+    def step1():
+        set_player_sprite("ability1")
+        with_delay(step2, 120)
+
+    def step2():
+        set_player_sprite("ability2")
+        with_delay(step3, 120)
+
+    def step3():
+        set_player_sprite("ability1")
+        with_delay(lambda: set_player_sprite("standing"), 120)
+
+    step1()
+
+
+def use_ability():
+    """
+    Once-per-match ability:
+      DOM   - Lockdown (CPU silenced for 2 turns)
+      JENNY - Guardian Aura (half damage for 5 CPU attacks)
+      QUINN - Boom Mic (3-frame pose + projectile + next 2 attacks double damage)
+
+    Also:
+      - Subtle screen shake
+      - Opponent damage animation when ability is used
+    """
+    global ability_used, cpu_silenced_turns, player_half_damage_turns, quinn_double_attacks
+    global player_turn, game_over
+
+    if game_over or ability_used or not player_turn or player_character is None:
+        return
+
+    ability_used = True
+
+    if player_character == "DOM":
+        cpu_silenced_turns = 2
+        log(f"{player_character} activates Lockdown! CPU cannot attack for 2 turns!")
+        animate_two_frame("cpu", "damage")
+        trigger_shake()
+
+    elif player_character == "JENNY":
+        player_half_damage_turns = 5
+        log(f"{player_character} activates Guardian Aura! Half damage for 5 CPU attacks!")
+        animate_two_frame("cpu", "damage")
+        trigger_shake()
+
+    elif player_character == "QUINN":
+        quinn_double_attacks = 2
+        log(f"{player_character} hurls the BOOM MIC! Next 2 attacks deal DOUBLE damage! 🎤💥")
+        animate_quinn_ability_sequence()
+        show_quinn_boom()
+        animate_two_frame("cpu", "damage")
+        trigger_shake()
+
+    player_turn = False
+    set_buttons(False)
+    status_el.innerText = f"{cpu_character} (CPU) responds..."
+    with_delay(cpu_attack, 1000)
+
+
+def cpu_attack():
+    global player_hp, player_turn, game_over
+    global cpu_silenced_turns, player_half_damage_turns
+
+    if game_over:
+        return
+
+    if cpu_silenced_turns > 0:
+        cpu_silenced_turns -= 1
+        log(f"{cpu_character} is locked down and cannot act this turn!")
+        if cpu_silenced_turns == 0:
+            log("Lockdown has ended. CPU can attack again.")
+        player_turn = True
+        set_buttons(True)
+        status_el.innerText = f"Your turn, {player_character}!"
+        return
+
+    if random.random() < 0.5:
+        dmg = random.randint(7, 17)
+        move_name = "Punch 👊"
+        attack_kind = "punch"
+    else:
+        dmg = random.randint(3, 24)
+        move_name = "Kick 🦵"
+        attack_kind = "kick"
+
+    if player_character == "JENNY" and player_half_damage_turns > 0:
+        original = dmg
+        dmg = max(1, dmg // 2)
+        player_half_damage_turns -= 1
+        log(f"Guardian Aura reduces damage from {original} to {dmg}!")
+        if player_half_damage_turns == 0:
+            log("Guardian Aura fades. JENNY now takes full damage.")
+
+    animate_two_frame("cpu", attack_kind)
+    animate_two_frame("player", "damage")
+    trigger_attack("cpu")
+
+    player_hp = max(player_hp - dmg, 0)
+    log(f"{cpu_character} uses {move_name} for {dmg} damage!")
+    update_hp()
+
+    if player_hp <= 0:
+        handle_round_end("cpu")
+        return
+
+    player_turn = True
+    set_buttons(True)
+    status_el.innerText = f"Your turn, {player_character}!"
+
+
+@when("click", "#btn-punch")
+def do_punch(event):
+    player_attack("punch")
+
+@when("click", "#btn-kick")
+def do_kick(event):
+    player_attack("kick")
+
+@when("click", "#btn-ability")
+def do_ability(event):
+    use_ability()
+
+@when("click", "#btn-restart")
+def do_restart(event):
+    reset_game()
+    </script>
+</body>
+</html>
