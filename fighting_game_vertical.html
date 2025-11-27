@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>A²: Pixel Punchout! – Vertical</title>
+    <title>A²: Pixel Punchout! – Vertical Arcade</title>
 
     <!-- Mobile viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,7 +13,7 @@
 
     <style>
         :root {
-            /* Narrower, vertical “Game Boy” style width */
+            /* Narrower, vertical “handheld” width */
             --game-width: 380px;
         }
 
@@ -40,7 +40,7 @@
             display: none;
         }
 
-        /* --- Character Select Screen (vertical friendly) --- */
+        /* --- Character Select Screen --- */
         #char-select-screen {
             background: #020617;
             border-radius: 18px;
@@ -112,7 +112,7 @@
             opacity: 0.85;
         }
 
-        /* --- Game container – Game Boy style shell --- */
+        /* --- Game container – arcade shell --- */
         .game-container {
             background: radial-gradient(circle at top, #111827 0, #020617 55%);
             border-radius: 22px;
@@ -150,7 +150,7 @@
             display: none;
         }
 
-        /* --- HUD INSIDE arena (top) --- */
+        /* --- HUD inside arena --- */
         .top-hud {
             position: absolute;
             top: 4px;
@@ -220,7 +220,7 @@
             background: #ef4444;
         }
 
-        /* Sprites (315 x 252) – scaled to fit vertical arena */
+        /* Sprites (scaled for vertical arena) */
         .sprite {
             position: absolute;
             bottom: -28px;
@@ -294,45 +294,123 @@
             opacity: 0.95;
         }
 
-        /* Vertical control layout like Game Boy buttons under the screen */
-        .controls {
+        /* --- Arcade control panel --- */
+        .controls-arcade {
+            margin-top: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* D-pad */
+        .dpad {
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle at 30% 30%, #111827, #020617);
+            border-radius: 20px;
+            border: 2px solid #0f172a;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 4px;
+            padding: 6px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.6);
+        }
+
+        .dpad-btn {
+            border-radius: 10px;
+            background: #1f2937;
+            border: 1px solid #0f172a;
+            color: #e5e7eb;
+            font-size: 0.7rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 0 rgba(0,0,0,0.6);
+        }
+
+        .dpad-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 0 rgba(0,0,0,0.8);
+        }
+
+        .dpad-spacer {
+            pointer-events: none;
+        }
+
+        /* Action buttons cluster */
+        .action-cluster {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            justify-content: center;
             align-items: stretch;
-            margin-top: 4px;
+            gap: 6px;
         }
 
-        button {
-            border: none;
+        .action-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .btn-action {
+            flex: 1;
             border-radius: 999px;
-            padding: 10px 14px;
-            font-size: 0.95rem;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: none;
             cursor: pointer;
-            background: #2563eb;
             color: white;
-            font-weight: 600;
-            width: 100%;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.6);
         }
 
-        button:disabled {
-            background: #4b5563;
+        .btn-action:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.8);
         }
 
-        .secondary-btn {
+        .btn-punch {
+            background: #ef4444;
+        }
+
+        .btn-kick {
             background: #10b981;
         }
 
-        #btn-restart {
-            background: #64748b;
-        }
-
-        .ability-btn {
+        .btn-ability {
             background: #a855f7;
         }
 
-        /* Attack wiggle – tuned for smaller arena */
+        .btn-action:disabled {
+            background: #4b5563;
+            box-shadow: 0 0 0 rgba(0,0,0,0.3);
+        }
+
+        .btn-meta {
+            align-self: center;
+            border-radius: 999px;
+            padding: 6px 18px;
+            font-size: 0.8rem;
+            background: #64748b;
+            color: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 3px 0 rgba(0,0,0,0.6);
+        }
+
+        .btn-meta:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 0 rgba(0,0,0,0.8);
+        }
+
+        .btn-meta:disabled {
+            background: #4b5563;
+            box-shadow: none;
+        }
+
+        /* Attack wiggle */
         @keyframes attack-player {
             0% { transform: translateX(0); }
             40% { transform: translateX(40px); }   /* left fighter moves right (toward center) */
@@ -452,12 +530,36 @@
         <div id="status" class="center">Your turn! Choose an attack.</div>
         <div class="log" id="log"></div>
 
-        <!-- Vertical controls under the screen -->
-        <div class="controls">
-            <button id="btn-punch">Punch 👊</button>
-            <button id="btn-kick" class="secondary-btn">Kick 🦵</button>
-            <button id="btn-ability" class="ability-btn">Ability ✨</button>
-            <button id="btn-restart">Restart 🔁</button>
+        <!-- Arcade controls under the screen -->
+        <div class="controls-arcade">
+            <!-- D-Pad -->
+            <div class="dpad">
+                <div class="dpad-spacer"></div>
+                <button class="dpad-btn">▲</button>
+                <div class="dpad-spacer"></div>
+
+                <button class="dpad-btn">◀</button>
+                <div class="dpad-spacer"></div>
+                <button class="dpad-btn">▶</button>
+
+                <div class="dpad-spacer"></div>
+                <button class="dpad-btn">▼</button>
+                <div class="dpad-spacer"></div>
+            </div>
+
+            <!-- Action buttons cluster -->
+            <div class="action-cluster">
+                <div class="action-row">
+                    <button id="btn-punch" class="btn-action btn-punch">Punch</button>
+                    <button id="btn-kick" class="btn-action btn-kick">Kick</button>
+                </div>
+                <div class="action-row">
+                    <button id="btn-ability" class="btn-action btn-ability">Ability</button>
+                    <div style="flex:1; display:flex; justify-content:center; align-items:center;">
+                        <button id="btn-restart" class="btn-meta">Restart</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -675,7 +777,7 @@ def trigger_attack(attacker: str):
 def trigger_shake():
     """Subtle screen shake when abilities land."""
     arena_el.classList.remove("shake")
-    _ = arena_el.offsetWidth  # reflow
+    _ = arena_el.offsetWidth
     arena_el.classList.add("shake")
 
     def clear():
@@ -854,7 +956,6 @@ def player_attack(move: str):
         quinn_double_attacks -= 1
         log(f"Boom Mic Power boosts damage from {original} to {dmg}! 🎤💥")
 
-    # hit SFX
     hit_sfx = random.choice(["sfx-hit1", "sfx-hit2", "sfx-hit3"])
     play_sound(hit_sfx)
 
@@ -862,7 +963,6 @@ def player_attack(move: str):
     animate_two_frame("cpu", "damage")
     trigger_attack("player")
 
-    # CPU damage voice
     if cpu_character == "JENNY":
         play_sound("sfx-female-dmg")
     else:
