@@ -13,7 +13,6 @@
 
     <style>
         :root {
-            /* Narrower, vertical “handheld” width */
             --game-width: 380px;
         }
 
@@ -535,15 +534,15 @@
             <!-- D-Pad -->
             <div class="dpad">
                 <div class="dpad-spacer"></div>
-                <button class="dpad-btn">▲</button>
+                <button id="dpad-up" class="dpad-btn">▲</button>
                 <div class="dpad-spacer"></div>
 
-                <button class="dpad-btn">◀</button>
+                <button id="dpad-left" class="dpad-btn">◀</button>
                 <div class="dpad-spacer"></div>
-                <button class="dpad-btn">▶</button>
+                <button id="dpad-right" class="dpad-btn">▶</button>
 
                 <div class="dpad-spacer"></div>
-                <button class="dpad-btn">▼</button>
+                <button id="dpad-down" class="dpad-btn">▼</button>
                 <div class="dpad-spacer"></div>
             </div>
 
@@ -625,7 +624,7 @@ WIN_QUOTES = {
     "QUINN": 'QUINN: "That\'s a wrap. Cut!"',
 }
 
-# Sprite paths (with DOM ability frames)
+# Sprite paths (with DOM/QUINN ability frames)
 SPRITES = {
     "DOM": {
         "standing": "assets/dom_standing.png",
@@ -675,12 +674,24 @@ game_over     = False  # true when round OR match is not active
 ability_used             = False
 cpu_silenced_turns       = 0   # DOM
 player_half_damage_turns = 0   # JENNY
-quinn_double_attacks     = 0   # QUINN
+quinn_double_attacks     = 0   # QUINN (now only 1 buffed hit)
 
 # Rounds (best of 3)
 player_round_wins = 0
 cpu_round_wins    = 0
 MAX_ROUND_WINS    = 2
+
+# Movement state
+PLAYER_START_LEFT = 36
+CPU_START_RIGHT   = 36
+PLAYER_MIN_LEFT   = 5
+PLAYER_MAX_LEFT   = 120
+CPU_MIN_RIGHT     = 5
+CPU_MAX_RIGHT     = 120
+MOVE_STEP         = 18
+
+player_left_px = PLAYER_START_LEFT
+cpu_right_px   = CPU_START_RIGHT
 
 
 # -------------------------------
@@ -724,6 +735,10 @@ def update_hp():
     player_hp_bar.style.background = color_for_hp(player_hp, player_max_hp)
     cpu_hp_bar.style.background    = color_for_hp(cpu_hp, cpu_max_hp)
 
+def update_positions():
+    """Apply player/cpu position to their sprites."""
+    player_sprite.style.left  = f"{player_left_px}px"
+    cpu_sprite.style.right    = f"{cpu_right_px}px"
 
 def set_player_sprite(state: str):
     if player_character is None:
@@ -805,6 +820,30 @@ def update_round_dots():
 
 
 # -------------------------------
+# Movement
+# -------------------------------
+def move_player(direction: str):
+    global player_left_px
+    if game_over:
+        return
+    if direction == "left":
+        player_left_px = max(PLAYER_MIN_LEFT, player_left_px - MOVE_STEP)
+    elif direction == "right":
+        player_left_px = min(PLAYER_MAX_LEFT, player_left_px + MOVE_STEP)
+    update_positions()
+
+def move_cpu_random():
+    """CPU steps forward/back randomly before attack."""
+    global cpu_right_px
+    choice = random.choice(["forward", "back", "stay"])
+    if choice == "forward":
+        cpu_right_px = min(CPU_MAX_RIGHT, cpu_right_px + MOVE_STEP)
+    elif choice == "back":
+        cpu_right_px = max(CPU_MIN_RIGHT, cpu_right_px - MOVE_STEP)
+    update_positions()
+
+
+# -------------------------------
 # Character selection
 # -------------------------------
 def choose_cpu_for_player(chosen: str) -> str:
@@ -815,6 +854,7 @@ def apply_character(chosen: str):
     global player_character, cpu_character
     global ability_used, cpu_silenced_turns, player_half_damage_turns, quinn_double_attacks
     global player_round_wins, cpu_round_wins
+    global player_left_px, cpu_right_px
 
     player_character = chosen
     cpu_character    = choose_cpu_for_player(chosen)
@@ -828,6 +868,11 @@ def apply_character(chosen: str):
 
     set_player_sprite("standing")
     set_cpu_sprite("standing")
+
+    # Reset positions when a character is chosen
+    player_left_px = PLAYER_START_LEFT
+    cpu_right_px   = CPU_START_RIGHT
+    update_positions()
 
     char_screen.style.display = "none"
     game_screen.style.display = "block"
@@ -856,17 +901,24 @@ def reset_ability_state():
     ability_used             = False
     cpu_silenced_turns       = 0
     player_half_damage_turns = 0
-    quinn_double_attacks     = 0
+    quinn_double_attacks     = 0  # reset buff to off
 
 
 def start_new_round():
     global player_hp, cpu_hp, player_turn, game_over
+    global player_left_px, cpu_right_px
 
     player_hp = player_max_hp
     cpu_hp    = cpu_max_hp
     player_turn = True
     game_over   = False
     reset_ability_state()
+
+    # Reset positions each round
+    player_left_px = PLAYER_START_LEFT
+    cpu_right_px   = CPU_START_RIGHT
+    update_positions()
+
     update_hp()
     log_el.innerHTML = ""
 
@@ -878,6 +930,7 @@ def start_new_round():
 def reset_game():
     global player_hp, cpu_hp, player_turn, game_over
     global player_round_wins, cpu_round_wins
+    global player_left_px, cpu_right_px
 
     player_hp = player_max_hp
     cpu_hp    = cpu_max_hp
@@ -887,6 +940,11 @@ def reset_game():
     player_round_wins = 0
     cpu_round_wins    = 0
     reset_ability_state()
+
+    player_left_px = PLAYER_START_LEFT
+    cpu_right_px   = CPU_START_RIGHT
+    update_positions()
+
     update_hp()
     update_round_dots()
 
@@ -950,10 +1008,11 @@ def player_attack(move: str):
         move_name = "Kick 🦵"
         attack_kind = "kick"
 
+    # Quinn ability: now only buffs ONE next attack
     if player_character == "QUINN" and quinn_double_attacks > 0:
         original = dmg
         dmg *= 2
-        quinn_double_attacks -= 1
+        quinn_double_attacks = 0  # consume buff
         log(f"Boom Mic Power boosts damage from {original} to {dmg}! 🎤💥")
 
     hit_sfx = random.choice(["sfx-hit1", "sfx-hit2", "sfx-hit3"])
@@ -1020,6 +1079,16 @@ def animate_dom_ability_sequence():
 
 
 def use_ability():
+    """
+    Once-per-match ability:
+      DOM   - Lockdown (CPU silenced for 2 turns) + snap animation
+      JENNY - Guardian Aura (half damage for 5 CPU attacks)
+      QUINN - Boom Mic (visual only; NEXT attack deals double damage ONCE)
+
+    Abilities:
+      - trigger screen shake
+      - can play damage anim/SFX where appropriate
+    """
     global ability_used, cpu_silenced_turns, player_half_damage_turns, quinn_double_attacks
     global player_turn, game_over
 
@@ -1051,16 +1120,12 @@ def use_ability():
         trigger_shake()
 
     elif player_character == "QUINN":
-        quinn_double_attacks = 2
-        log(f"{player_character} hurls the BOOM MIC! Next 2 attacks deal DOUBLE damage! 🎤💥")
+        # NEW: no direct damage, buff next attack only
+        quinn_double_attacks = 1
+        log(f"{player_character} primes the BOOM MIC! Next attack deals DOUBLE damage! 🎤💥")
         play_sound("sfx-quinn-boom")
         animate_quinn_ability_sequence()
         show_quinn_boom()
-        animate_two_frame("cpu", "damage")
-        if cpu_character == "JENNY":
-            play_sound("sfx-female-dmg")
-        else:
-            play_sound("sfx-male-dmg")
         trigger_shake()
 
     player_turn = False
@@ -1085,6 +1150,9 @@ def cpu_attack():
         set_buttons(True)
         status_el.innerText = f"Your turn, {player_character}!"
         return
+
+    # CPU steps a bit before attacking
+    move_cpu_random()
 
     if random.random() < 0.5:
         dmg = random.randint(7, 17)
@@ -1128,6 +1196,9 @@ def cpu_attack():
     status_el.innerText = f"Your turn, {player_character}!"
 
 
+# -------------------------------
+# Button bindings
+# -------------------------------
 @when("click", "#btn-punch")
 def do_punch(event):
     player_attack("punch")
@@ -1143,6 +1214,16 @@ def do_ability(event):
 @when("click", "#btn-restart")
 def do_restart(event):
     reset_game()
+
+@when("click", "#dpad-left")
+def dpad_left(event):
+    move_player("left")
+
+@when("click", "#dpad-right")
+def dpad_right(event):
+    move_player("right")
+
+# (Up/Down are available for future use if you want to hook them later)
     </script>
 </body>
 </html>
